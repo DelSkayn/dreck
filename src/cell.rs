@@ -44,7 +44,7 @@ macro_rules! new_cell_owner {
 // -- The lcell from qcell crate
 
 /// The owner of all values in [`LCell`]'s with the same lifetime.
-pub struct CellOwner<'rt>(Invariant<'rt>);
+pub struct CellOwner<'rt>(pub(crate) Invariant<'rt>);
 
 impl<'rt> CellOwner<'rt> {
     // Create a new Cell owener

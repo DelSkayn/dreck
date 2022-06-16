@@ -99,17 +99,19 @@ pub struct Root<'cell> {
     _marker: Invariant<'cell>,
 }
 
-pub struct RootGuard<'rt, 'cell>(pub &'rt Root<'cell>);
+pub struct RootGuard<'cell>(*const Root<'cell>);
 
-impl<'rt, 'cell> RootGuard<'rt, 'cell> {
+impl<'cell> RootGuard<'cell> {
     pub unsafe fn bind<'a, R: Rebind<'a>>(&'a self, r: R) -> R::Output {
         crate::rebind(r)
     }
 }
 
-impl<'rt, 'cell> Drop for RootGuard<'rt, 'cell> {
+impl<'cell> Drop for RootGuard<'cell> {
     fn drop(&mut self) {
-        self.0.roots.borrow_mut().pop();
+        unsafe {
+            (*self.0).roots.borrow_mut().pop();
+        }
     }
 }
 
@@ -118,7 +120,11 @@ impl<'cell> Root<'cell> {
     const TIMING_FACTOR: f64 = 1.5;
     const MIN_SLEEP: usize = 4096;
 
-    pub unsafe fn new() -> Self {
+    /// Create a new gc root.
+    ///
+    /// # Safety
+    /// It is unsafe to create two roots with the same `'cell` lifetime.
+    pub unsafe fn new(owner: &CellOwner<'cell>) -> Self {
         Root {
             roots: RefCell::new(Vec::new()),
 
@@ -136,13 +142,21 @@ impl<'cell> Root<'cell> {
             allocation_debt: Cell::new(0.0),
 
             phase: Cell::new(Phase::Sleep),
-            _marker: Invariant::new(),
+            _marker: owner.0,
         }
     }
 
-    pub unsafe fn root_gc<'rt, T: Trace>(&'rt self, t: Gc<'_, 'cell, T>) -> RootGuard<'rt, 'cell> {
+    pub unsafe fn root_gc<T: Trace>(&self, t: Gc<'_, 'cell, T>) -> RootGuard<'cell> {
         self.roots.borrow_mut().push(t.as_trace_ptr());
         RootGuard(self)
+    }
+
+    #[inline]
+    pub unsafe fn rebind_to<'a, T: Trace + Rebind<'a>>(
+        &'a self,
+        t: Gc<'_, 'cell, T>,
+    ) -> Gc<'a, 'cell, T::Output> {
+        crate::rebind(t)
     }
 
     pub fn add<'gc, T>(&'gc self, v: T) -> Gc<'gc, 'cell, T::Output>
@@ -222,7 +236,8 @@ impl<'cell> Root<'cell> {
                         self.phase.set(Phase::Mark);
                     }
                     Phase::Mark => {
-                        if let Some(ptr) = self.grays.borrow_mut().pop() {
+                        let ptr = self.grays.borrow_mut().pop();
+                        if let Some(ptr) = ptr {
                             //assert!(tmp.insert(x.as_ptr()));
                             let size = mem::size_of_val(ptr.as_ref());
                             work_done += size;
@@ -232,28 +247,31 @@ impl<'cell> Root<'cell> {
                             });
 
                             ptr.as_ref().color.set(Color::Black);
-                        } else if let Some(ptr) = self.grays_again.borrow_mut().pop() {
-                            //assert!(!tmp.insert(x.as_ptr()));
-                            ptr.as_ref().value.borrow(owner).trace(Tracer {
-                                root: mem::transmute(&*self),
-                            });
-                            ptr.as_ref().color.set(Color::Black);
                         } else {
-                            let borrow = &*self;
-                            self.roots.borrow().iter().copied().for_each(|x| {
-                                (*x).trace(Tracer {
-                                    root: mem::transmute(borrow),
+                            let ptr = self.grays.borrow_mut().pop();
+                            if let Some(ptr) = ptr {
+                                //assert!(!tmp.insert(x.as_ptr()));
+                                ptr.as_ref().value.borrow(owner).trace(Tracer {
+                                    root: mem::transmute(&*self),
                                 });
-                            });
+                                ptr.as_ref().color.set(Color::Black);
+                            } else {
+                                let borrow = &*self;
+                                self.roots.borrow().iter().copied().for_each(|x| {
+                                    (*x).trace(Tracer {
+                                        root: mem::transmute(borrow),
+                                    });
+                                });
 
-                            // Found new values in root
-                            // Should continue tracing till no more free values are found.
-                            if !self.grays.borrow().is_empty() {
-                                continue;
+                                // Found new values in root
+                                // Should continue tracing till no more free values are found.
+                                if !self.grays.borrow().is_empty() {
+                                    continue;
+                                }
+
+                                self.phase.set(Phase::Sweep);
+                                self.sweep.set(self.all.get());
                             }
-
-                            self.phase.set(Phase::Sweep);
-                            self.sweep.set(self.all.get());
                         }
                     }
                     Phase::Sweep => {

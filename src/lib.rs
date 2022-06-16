@@ -11,26 +11,34 @@ mod impl_trait;
 
 #[macro_export]
 macro_rules! rebind {
-    ($arena:expr, $value:expr) => {{
+    ($root:expr, $value:expr) => {{
         let v = $value;
         unsafe {
             // Detach from arena's lifetime.
-            let v = $crate::gc::rebind(v);
+            let v = $crate::rebind(v);
             // Ensure that the $arena is an arena.
-            let a: &$crate::gc::Arena = $arena;
+            let r: &$crate::Root = $root;
             // Bind to the lifetime of the arena.
-            $crate::gc::rebind_to(a, v)
+            r.rebind_to(v)
         }
     }};
 }
 
 #[macro_export]
 macro_rules! root {
-    ($arena:expr, $value:ident) => {
-        let $value = unsafe { $crate::gc::rebind($value) };
-        let __guard = $arena._root_gc($value);
+    ($root:expr, $value:ident) => {
+        let $value = unsafe { $crate::rebind($value) };
+        let __guard = unsafe { $root.root_gc($value) };
         #[allow(unused_unsafe)]
-        let $value = unsafe { $crate::gc::rebind_to(&__guard, $value) };
+        let $value = unsafe { $crate::rebind_to(&__guard, $value) };
+    };
+}
+
+#[macro_export]
+macro_rules! new_root {
+    ($owner:ident, $root:ident) => {
+        $crate::new_cell_owner!($owner);
+        let mut $root = unsafe { $crate::Root::new(&$owner) };
     };
 }
 
