@@ -1,4 +1,4 @@
-use dreck::{new_cell_owner, new_root, rebind, root, Gc, Rebind, Root, Trace};
+use dreck::*;
 
 fn alloc_mut<'gc, 'cell>(arena: &'gc mut Root<'cell>) -> Gc<'gc, 'cell, u32> {
     arena.add(0 as u32)
@@ -32,7 +32,7 @@ fn root() {
     new_root!(owner, root);
 
     let a = root.add(1i32);
-    root!(root, a);
+    root!(&root, a);
     let b = a;
 
     *b.borrow_mut_untraced(&mut owner) += 1;
@@ -85,7 +85,7 @@ fn container_trace() {
         container = Container(Some(alloc))
     }
     let alloc = root.add(container);
-    root!(root, alloc);
+    root!(&root, alloc);
 
     root.collect_full(&mut owner);
 

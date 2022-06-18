@@ -27,7 +27,7 @@ macro_rules! new_cell_owner {
         let tag = unsafe { $crate::cell::Invariant::new() };
         let _cell_owner;
         #[allow(unused_mut)]
-        let mut $name = unsafe { $crate::cell::CellOwner::new(tag) };
+        let mut $name = unsafe { &mut $crate::cell::CellOwner::new(tag) };
         {
             if false {
                 #[allow(non_camel_case_types)]

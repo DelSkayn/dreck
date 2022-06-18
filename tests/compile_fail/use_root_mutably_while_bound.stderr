@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `root` as mutable because it is also borrowed as immutable
+  --> tests/compile_fail/use_root_mutably_while_bound.rs:11:22
+   |
+10 |     let v = root.add(0);
+   |             ----------- immutable borrow occurs here
+11 |     use_root(&owner, &mut root, v);
+   |                      ^^^^^^^^^  - immutable borrow later used here
+   |                      |
+   |                      mutable borrow occurs here

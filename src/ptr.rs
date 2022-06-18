@@ -71,7 +71,7 @@ impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
 
     /// # Safety
     ///
-    /// The pointer given must be one obtained from `[Gc::into_ptr]`
+    /// The pointer given must be one obtained from [`Gc::into_ptr`]
     pub unsafe fn from_ptr(ptr: NonNull<GcBox<'cell, T>>) -> Self {
         Gc {
             ptr,
@@ -90,6 +90,7 @@ impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
         }
     }
 
+    /// Returns whether two gc objects points to the same object.
     pub fn ptr_eq(self, other: Gc<'_, 'cell, T>) -> bool {
         std::ptr::eq(self.ptr.as_ptr(), other.ptr.as_ptr())
     }
@@ -119,7 +120,9 @@ impl<'a, 'gc, 'cell, A> Gc<'gc, 'cell, A>
 where
     A: Rebind<'a> + Trace + 'a,
 {
-    // Borrow the contained value mutably
+    /// Borrow the two gc pointers mutably.
+    /// # panic
+    /// This method will panic if both pointers point to the same object.
     #[inline]
     pub fn borrow_mut_2<'rt, B>(
         _owner: &'a mut CellOwner<'cell>,
@@ -144,7 +147,9 @@ where
         (a, b)
     }
 
-    // Borrow the contained value mutably
+    /// Borrow the three gc pointers mutably.
+    /// # panic
+    /// This method will panic if any of the pointers point to the same object.
     #[inline]
     pub fn borrow_mut_3<'rt, B, C>(
         _owner: &'a mut CellOwner<'cell>,
@@ -182,7 +187,7 @@ impl<'a, 'gc, 'cell, T> Gc<'gc, 'cell, T>
 where
     T: Rebind<'a> + Trace + 'gc + 'a,
 {
-    // Borrow the contained value mutably
+    /// Borrow the contained value mutably
     #[inline]
     pub fn borrow_mut(
         self,

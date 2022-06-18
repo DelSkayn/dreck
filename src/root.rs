@@ -99,9 +99,15 @@ pub struct Root<'cell> {
     _marker: Invariant<'cell>,
 }
 
+/// A guard which will keep a value on the stack rooted for as long as it is alive.
+///
+/// This struct should not be used in safe code.
 pub struct RootGuard<'cell>(*const Root<'cell>);
 
 impl<'cell> RootGuard<'cell> {
+    /// Rebind a value to the lifetime of the root guard.
+    /// This method should only ever be called with the object this root guard was created in
+    /// [`Root::root_gc`].
     pub unsafe fn bind<'a, R: Rebind<'a>>(&'a self, r: R) -> R::Output {
         crate::rebind(r)
     }
@@ -146,19 +152,28 @@ impl<'cell> Root<'cell> {
         }
     }
 
+    /// Root a gc pointer for the duration of root guard's lifetime.
+    ///
+    /// # Safety
+    /// - The `Root` object must outlife the returned `RootGuard`
+    /// - All `RootGuard`'s must be dropped in the reverse order of which they where created.
     pub unsafe fn root_gc<T: Trace>(&self, t: Gc<'_, 'cell, T>) -> RootGuard<'cell> {
         self.roots.borrow_mut().push(t.as_trace_ptr());
         RootGuard(self)
     }
 
-    #[inline]
-    pub unsafe fn rebind_to<'a, T: Trace + Rebind<'a>>(
+    /// Rebind a pointer to the lifetime of this root guard.
+    ///
+    /// On should prefer the [`rebind!`] macro instead of this function as it is more permissive
+    /// with which pointers it allows rebinding.
+    pub fn rebind_to<'a, T: Trace + Rebind<'a>>(
         &'a self,
         t: Gc<'_, 'cell, T>,
     ) -> Gc<'a, 'cell, T::Output> {
-        crate::rebind(t)
+        unsafe { crate::rebind(t) }
     }
 
+    /// Allocated a value as a garbage collected pointer.
     pub fn add<'gc, T>(&'gc self, v: T) -> Gc<'gc, 'cell, T::Output>
     where
         T: Rebind<'gc>,
@@ -203,13 +218,20 @@ impl<'cell> Root<'cell> {
         }
     }
 
-    pub fn collect_full(&mut self, owner: &mut CellOwner<'cell>) {
+    /// Run a full cycle of the garbage collection.
+    ///
+    /// Unlike [`Root::collect`] this method will allways collect all available present garbage.
+    pub fn collect_full(&mut self, owner: &CellOwner<'cell>) {
         self.allocation_debt.set(f64::INFINITY);
         self.phase.set(Phase::Wake);
         self.collect(owner);
     }
 
-    pub fn collect(&mut self, owner: &mut CellOwner<'cell>) {
+    /// Indicate a point at which garbage collection can run.
+    ///
+    /// The gc will only run if enough values have been allocated.
+    /// As the gc is incremental it will also only run only a part of the collection cycle.
+    pub fn collect(&mut self, owner: &CellOwner<'cell>) {
         unsafe {
             if self.phase.get() == Phase::Sleep {
                 return;
@@ -217,8 +239,6 @@ impl<'cell> Root<'cell> {
 
             let work = self.allocation_debt.get();
             let mut work_done = 0usize;
-
-            //let mut tmp = HashSet::new();
 
             while work > work_done as f64 {
                 match self.phase.get() {
@@ -318,6 +338,14 @@ impl<'cell> Root<'cell> {
         }
     }
 
+    /// Mark a pointer value as possibly containing new gc pointers.
+    ///
+    /// Calling this method is generally not required as the [`Gc`] struct will call this
+    /// function if you borrow a value mutably.
+    ///
+    /// If a type has an unsafe trace implementation and could ever contain new Gc'd values within
+    /// itself, One must call this function on objects of that type before running collection, everytime that object could
+    /// possibly contain new Gc'd values.
     #[inline]
     pub fn write_barrier<'a, T: Trace + 'a>(&self, gc: Gc<'a, 'cell, T>) {
         if !T::needs_trace() {
