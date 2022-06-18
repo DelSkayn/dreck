@@ -64,49 +64,6 @@ impl<'gc, 'cell, T: ?Sized> Clone for Gc<'gc, 'cell, T> {
     }
 }
 
-impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
-    pub fn into_ptr(self) -> NonNull<GcBox<'cell, T>> {
-        self.ptr
-    }
-
-    /// # Safety
-    ///
-    /// The pointer given must be one obtained from [`Gc::into_ptr`]
-    pub unsafe fn from_ptr(ptr: NonNull<GcBox<'cell, T>>) -> Self {
-        Gc {
-            ptr,
-            marker: PhantomData,
-        }
-    }
-
-    pub fn into_raw(this: Self) -> *mut GcBox<'cell, T> {
-        this.ptr.as_ptr()
-    }
-
-    pub unsafe fn from_raw(ptr: *mut GcBox<'cell, T>) -> Self {
-        Gc {
-            ptr: NonNull::new_unchecked(ptr),
-            marker: PhantomData,
-        }
-    }
-
-    /// Returns whether two gc objects points to the same object.
-    pub fn ptr_eq(self, other: Gc<'_, 'cell, T>) -> bool {
-        std::ptr::eq(self.ptr.as_ptr(), other.ptr.as_ptr())
-    }
-
-    #[doc(hidden)]
-    pub fn get(self) -> *mut T {
-        unsafe { &(*self.ptr.as_ptr()) }.value.get()
-    }
-
-    pub(crate) unsafe fn as_trace_ptr(self) -> *const dyn Trace {
-        let ptr: &GcBox<'cell, T> = self.ptr.as_ref();
-        let res = ptr as &dyn Trace;
-        mem::transmute::<*const dyn Trace, _>(res)
-    }
-}
-
 impl<'a, 'gc: 'a, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
     /// Borrow the contained value
     #[inline(always)]
@@ -186,7 +143,7 @@ where
     }
 }
 
-impl<'a, 'gc, 'cell, T> Gc<'gc, 'cell, T>
+impl<'a, 'gc: 'a, 'cell, T> Gc<'gc, 'cell, T>
 where
     T: Trace + 'gc + 'a,
 {
@@ -222,5 +179,48 @@ where
     #[inline]
     pub unsafe fn unsafe_borrow_mut(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
         owner.borrow_mut(&self.ptr.as_ref().value)
+    }
+}
+
+impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
+    pub fn into_ptr(self) -> NonNull<GcBox<'cell, T>> {
+        self.ptr
+    }
+
+    /// # Safety
+    ///
+    /// The pointer given must be one obtained from [`Gc::into_ptr`]
+    pub unsafe fn from_ptr(ptr: NonNull<GcBox<'cell, T>>) -> Self {
+        Gc {
+            ptr,
+            marker: PhantomData,
+        }
+    }
+
+    pub fn into_raw(this: Self) -> *mut GcBox<'cell, T> {
+        this.ptr.as_ptr()
+    }
+
+    pub unsafe fn from_raw(ptr: *mut GcBox<'cell, T>) -> Self {
+        Gc {
+            ptr: NonNull::new_unchecked(ptr),
+            marker: PhantomData,
+        }
+    }
+
+    /// Returns whether two gc objects points to the same object.
+    pub fn ptr_eq(self, other: Gc<'_, 'cell, T>) -> bool {
+        std::ptr::eq(self.ptr.as_ptr(), other.ptr.as_ptr())
+    }
+
+    #[doc(hidden)]
+    pub fn get(self) -> *mut T {
+        unsafe { &(*self.ptr.as_ptr()) }.value.get()
+    }
+
+    pub(crate) unsafe fn as_trace_ptr(self) -> *const dyn Trace {
+        let ptr: &GcBox<'cell, T> = self.ptr.as_ref();
+        let res = ptr as &dyn Trace;
+        mem::transmute::<*const dyn Trace, _>(res)
     }
 }

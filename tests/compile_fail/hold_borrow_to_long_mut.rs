@@ -5,7 +5,7 @@ fn main() {
     let a = {
         let root = unsafe { Root::new(owner) };
         let a = root.add(0);
-        a.borrow_mut(owner)
+        a.borrow_mut_untraced(owner)
     };
     assert_eq!(*a, 0);
 }
