@@ -1,0 +1,15 @@
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> tests/compile_fail/hold_borrow_to_long_mut.rs:8:11
+    |
+8   |         a.borrow_mut(owner)
+    |           ^^^^^^^^^^------- an argument of type `&dreck::Root<'_>` is missing
+    |
+note: associated function defined here
+   --> src/ptr.rs
+    |
+    |     pub fn borrow_mut(self, owner: &'a mut CellOwner<'cell>, arena: &Root<'cell>) -> &'a mut T {
+    |            ^^^^^^^^^^
+help: provide the argument
+    |
+8   |         a.borrow_mut(owner, {&dreck::Root<'_>})
+    |           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

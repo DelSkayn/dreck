@@ -13,9 +13,11 @@ use std::{
     ptr::{self, NonNull},
 };
 
+/// Object passed to [`Trace::trace`] method, used to mark pointers.
 #[derive(Clone, Copy)]
 pub struct Tracer<'rt> {
-    // Lifetime is static here to avoid needing an extra lifetime on tracer.
+    // Lifetime is static here to avoid needing an extra lifetime on
+    // both tracer and the Trace macro.
     root: &'rt Root<'static>,
 }
 
@@ -70,6 +72,7 @@ enum Phase {
     Sweep,
 }
 
+/// Root of the dreck GC, used for allocating [`Gc`] pointers and run collection.
 pub struct Root<'cell> {
     // All lifetimes are static as the implementation ensures that the values contained in the
     // pointer are never borrowed without a CellOwner and the values are valid as long as the
@@ -127,6 +130,7 @@ impl<'cell> Root<'cell> {
     const MIN_SLEEP: usize = 4096;
 
     /// Create a new gc root.
+    /// Prefer the use of the [`new_root!`] macro.
     ///
     /// # Safety
     /// It is unsafe to create two roots with the same `'cell` lifetime.
@@ -153,6 +157,7 @@ impl<'cell> Root<'cell> {
     }
 
     /// Root a gc pointer for the duration of root guard's lifetime.
+    /// Prefer the use of the [`root!`] macro.
     ///
     /// # Safety
     /// - The `Root` object must outlife the returned `RootGuard`
@@ -220,7 +225,7 @@ impl<'cell> Root<'cell> {
 
     /// Run a full cycle of the garbage collection.
     ///
-    /// Unlike [`Root::collect`] this method will allways collect all available present garbage.
+    /// Unlike [`Root::collect`] this method will allways collect all unreachable Gc'd objects.
     pub fn collect_full(&mut self, owner: &CellOwner<'cell>) {
         self.allocation_debt.set(f64::INFINITY);
         self.phase.set(Phase::Wake);
@@ -229,7 +234,7 @@ impl<'cell> Root<'cell> {
 
     /// Indicate a point at which garbage collection can run.
     ///
-    /// The gc will only run if enough values have been allocated.
+    /// The gc will only run if enough objects have been allocated.
     /// As the gc is incremental it will also only run only a part of the collection cycle.
     pub fn collect(&mut self, owner: &CellOwner<'cell>) {
         unsafe {
@@ -340,8 +345,8 @@ impl<'cell> Root<'cell> {
 
     /// Mark a pointer value as possibly containing new gc pointers.
     ///
-    /// Calling this method is generally not required as the [`Gc`] struct will call this
-    /// function if you borrow a value mutably.
+    /// In safe code you should never have to call this method as the [`Gc`] struct will manage
+    /// write barriers for you.
     ///
     /// If a type has an unsafe trace implementation and could ever contain new Gc'd values within
     /// itself, One must call this function on objects of that type before running collection, everytime that object could

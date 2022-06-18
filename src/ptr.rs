@@ -95,12 +95,7 @@ impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
         std::ptr::eq(self.ptr.as_ptr(), other.ptr.as_ptr())
     }
 
-    // Borrow the contained value
-    #[inline(always)]
-    pub fn borrow<'a>(self, owner: &'a CellOwner<'cell>) -> &'a T {
-        unsafe { owner.borrow(&self.ptr.as_ref().value) }
-    }
-
+    #[doc(hidden)]
     pub fn get(self) -> *mut T {
         unsafe { &(*self.ptr.as_ptr()) }.value.get()
     }
@@ -112,26 +107,34 @@ impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
     }
 }
 
+impl<'a, 'gc: 'a, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
+    /// Borrow the contained value
+    #[inline(always)]
+    pub fn borrow(self, owner: &'a CellOwner<'cell>) -> &'a T {
+        unsafe { owner.borrow(&self.ptr.as_ref().value) }
+    }
+}
+
 unsafe impl<'a, 'gc, 'cell, T: Rebind<'a>> Rebind<'a> for Gc<'gc, 'cell, T> {
     type Output = Gc<'a, 'cell, <T as Rebind<'a>>::Output>;
 }
 
-impl<'a, 'gc, 'cell, A> Gc<'gc, 'cell, A>
+impl<'a, 'gc: 'a, 'cell, A> Gc<'gc, 'cell, A>
 where
-    A: Rebind<'a> + Trace + 'a,
+    A: Trace + 'a,
 {
     /// Borrow the two gc pointers mutably.
     /// # panic
     /// This method will panic if both pointers point to the same object.
     #[inline]
-    pub fn borrow_mut_2<'rt, B>(
+    pub fn borrow_mut_2<B>(
         _owner: &'a mut CellOwner<'cell>,
         arena: &Root<'cell>,
         a: Gc<'gc, 'cell, A>,
         b: Gc<'gc, 'cell, B>,
-    ) -> (&'a mut A::Output, &'a mut B::Output)
+    ) -> (&'a mut A, &'a mut B)
     where
-        B: Rebind<'a> + Trace + 'a,
+        B: Trace + 'a,
     {
         assert_ne!(a.ptr.as_ptr() as usize, b.ptr.as_ptr() as usize);
 
@@ -142,8 +145,8 @@ where
             arena.write_barrier(b);
         }
 
-        let a = unsafe { super::rebind(&mut (*a.get())) };
-        let b = unsafe { super::rebind(&mut (*b.get())) };
+        let a = unsafe { &mut (*a.get()) };
+        let b = unsafe { &mut (*b.get()) };
         (a, b)
     }
 
@@ -157,10 +160,10 @@ where
         a: Gc<'gc, 'cell, A>,
         b: Gc<'gc, 'cell, B>,
         c: Gc<'gc, 'cell, C>,
-    ) -> (&'a mut A::Output, &'a mut B::Output, &'a mut C::Output)
+    ) -> (&'a mut A, &'a mut B, &'a mut C)
     where
-        B: Rebind<'a> + Trace + 'a,
-        C: Rebind<'a> + Trace + 'a,
+        B: Trace + 'a,
+        C: Trace + 'a,
     {
         assert_ne!(a.ptr.as_ptr() as usize, b.ptr.as_ptr() as usize);
         assert_ne!(a.ptr.as_ptr() as usize, c.ptr.as_ptr() as usize);
@@ -176,28 +179,24 @@ where
             arena.write_barrier(c);
         }
 
-        let a = unsafe { super::rebind(&mut (*a.get())) };
-        let b = unsafe { super::rebind(&mut (*b.get())) };
-        let c = unsafe { super::rebind(&mut (*c.get())) };
+        let a = unsafe { &mut (*a.get()) };
+        let b = unsafe { &mut (*b.get()) };
+        let c = unsafe { &mut (*c.get()) };
         (a, b, c)
     }
 }
 
 impl<'a, 'gc, 'cell, T> Gc<'gc, 'cell, T>
 where
-    T: Rebind<'a> + Trace + 'gc + 'a,
+    T: Trace + 'gc + 'a,
 {
     /// Borrow the contained value mutably
     #[inline]
-    pub fn borrow_mut(
-        self,
-        owner: &'a mut CellOwner<'cell>,
-        arena: &Root<'cell>,
-    ) -> &'a mut T::Output {
+    pub fn borrow_mut(self, owner: &'a mut CellOwner<'cell>, arena: &Root<'cell>) -> &'a mut T {
         if T::needs_trace() {
             arena.write_barrier(self);
         }
-        unsafe { super::rebind(owner.borrow_mut(&self.ptr.as_ref().value)) }
+        unsafe { owner.borrow_mut(&self.ptr.as_ref().value) }
     }
 
     /// Borrow the contained value mutably without requiring access to the arena,
@@ -207,11 +206,11 @@ where
     ///
     /// Will panic if `T::needs_trace()` returns true.
     #[inline]
-    pub fn borrow_mut_untraced(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T::Output {
+    pub fn borrow_mut_untraced(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
         if T::needs_trace() {
             panic!("called borrow_mut_untraced on pointer which requires tracing")
         }
-        unsafe { super::rebind(owner.borrow_mut(&self.ptr.as_ref().value)) }
+        unsafe { owner.borrow_mut(&self.ptr.as_ref().value) }
     }
 
     /// Borrow the contained value mutably without requiring access to the arena,
@@ -221,7 +220,7 @@ where
     /// User should guarentee that no new gc pointers can be reached from this pointer after
     /// releasing the borrow.
     #[inline]
-    pub unsafe fn unsafe_borrow_mut(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T::Output {
-        super::rebind(owner.borrow_mut(&self.ptr.as_ref().value))
+    pub unsafe fn unsafe_borrow_mut(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
+        owner.borrow_mut(&self.ptr.as_ref().value)
     }
 }

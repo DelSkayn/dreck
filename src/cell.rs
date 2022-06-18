@@ -1,3 +1,5 @@
+//! Module implementing a version of a GhostCell specifically for use in `dreck`
+
 use core::fmt;
 use std::{cell::UnsafeCell, marker::PhantomData};
 

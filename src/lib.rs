@@ -4,8 +4,8 @@ pub use cell::CellOwner;
 mod ptr;
 pub use ptr::Gc;
 
-pub mod root;
-pub use root::{Root, Tracer};
+mod root;
+pub use root::{Root, RootGuard, Tracer};
 
 mod impl_trait;
 
