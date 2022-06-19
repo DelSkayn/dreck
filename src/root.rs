@@ -133,7 +133,9 @@ impl<'cell> Root<'cell> {
     /// Prefer the use of the [`new_root!`] macro.
     ///
     /// # Safety
-    /// It is unsafe to create two roots with the same `'cell` lifetime.
+    /// - It is unsafe to create two roots of with the same `'cell` lifetime.
+    /// - The `Root` object must outlife all [`RootGuard`]'s created either by the [`root!`] macro
+    /// or by [`Root::root_gc`].
     pub unsafe fn new(owner: &CellOwner<'cell>) -> Self {
         Root {
             roots: RefCell::new(Vec::new()),
@@ -155,29 +157,6 @@ impl<'cell> Root<'cell> {
             _marker: owner.0,
         }
     }
-
-    /// Root a gc pointer for the duration of root guard's lifetime.
-    /// Prefer the use of the [`root!`] macro.
-    ///
-    /// # Safety
-    /// - The `Root` object must outlife the returned `RootGuard`
-    /// - All `RootGuard`'s must be dropped in the reverse order of which they where created.
-    pub unsafe fn root_gc<T: Trace>(&self, t: Gc<'_, 'cell, T>) -> RootGuard<'cell> {
-        self.roots.borrow_mut().push(t.as_trace_ptr());
-        RootGuard(self)
-    }
-
-    /// Rebind a pointer to the lifetime of this root guard.
-    ///
-    /// On should prefer the [`rebind!`] macro instead of this function as it is more permissive
-    /// with which pointers it allows rebinding.
-    pub fn rebind_to<'a, T: Trace + Rebind<'a>>(
-        &'a self,
-        t: Gc<'_, 'cell, T>,
-    ) -> Gc<'a, 'cell, T::Output> {
-        unsafe { crate::rebind(t) }
-    }
-
     /// Allocated a value as a garbage collected pointer.
     pub fn add<'gc, T>(&'gc self, v: T) -> Gc<'gc, 'cell, T::Output>
     where
@@ -363,5 +342,27 @@ impl<'cell> Root<'cell> {
                 self.grays_again.borrow_mut().push(mem::transmute(ptr));
             }
         }
+    }
+
+    /// Root a gc pointer for the duration of root guard's lifetime.
+    /// Prefer the use of the [`root!`] macro.
+    ///
+    /// # Safety
+    /// - The `Root` object must outlife the returned `RootGuard`
+    /// - All `RootGuard`'s must be dropped in the reverse order of which they where created.
+    pub unsafe fn root_gc<T: Trace>(&self, t: Gc<'_, 'cell, T>) -> RootGuard<'cell> {
+        self.roots.borrow_mut().push(t.as_trace_ptr());
+        RootGuard(self)
+    }
+
+    /// Rebind a pointer to the lifetime of this root guard.
+    ///
+    /// On should prefer the [`rebind!`] macro instead of this function as it is more permissive
+    /// with which pointers it allows rebinding.
+    pub fn rebind_to<'a, T: Trace + Rebind<'a>>(
+        &'a self,
+        t: Gc<'_, 'cell, T>,
+    ) -> Gc<'a, 'cell, T::Output> {
+        unsafe { crate::rebind(t) }
     }
 }

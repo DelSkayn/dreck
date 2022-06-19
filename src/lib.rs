@@ -89,7 +89,8 @@ macro_rules! root {
 macro_rules! new_root {
     ($owner:ident, $root:ident) => {
         $crate::new_cell_owner!($owner);
-        let mut $root = unsafe { $crate::Root::new(&$owner) };
+        let mut __root = unsafe { $crate::Root::new(&$owner) };
+        let $root = &mut __root;
     };
 }
 

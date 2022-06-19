@@ -8,5 +8,5 @@ fn main() {
     new_root!(owner, root);
 
     let v = root.add(0);
-    use_root(&owner, &mut root, v);
+    use_root(&owner, root, v);
 }

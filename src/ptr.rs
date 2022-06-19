@@ -78,7 +78,7 @@ unsafe impl<'a, 'gc, 'cell, T: Rebind<'a>> Rebind<'a> for Gc<'gc, 'cell, T> {
 
 impl<'a, 'gc: 'a, 'cell, A> Gc<'gc, 'cell, A>
 where
-    A: Trace + 'a,
+    A: Rebind<'a> + Trace + 'a,
 {
     /// Borrow the two gc pointers mutably.
     /// # panic
@@ -89,9 +89,9 @@ where
         arena: &Root<'cell>,
         a: Gc<'gc, 'cell, A>,
         b: Gc<'gc, 'cell, B>,
-    ) -> (&'a mut A, &'a mut B)
+    ) -> (&'a mut A::Output, &'a mut B::Output)
     where
-        B: Trace + 'a,
+        B: Rebind<'a> + Trace + 'a,
     {
         assert_ne!(a.ptr.as_ptr() as usize, b.ptr.as_ptr() as usize);
 
@@ -102,8 +102,8 @@ where
             arena.write_barrier(b);
         }
 
-        let a = unsafe { &mut (*a.get()) };
-        let b = unsafe { &mut (*b.get()) };
+        let a = unsafe { crate::rebind(&mut (*a.get())) };
+        let b = unsafe { crate::rebind(&mut (*b.get())) };
         (a, b)
     }
 
@@ -117,10 +117,10 @@ where
         a: Gc<'gc, 'cell, A>,
         b: Gc<'gc, 'cell, B>,
         c: Gc<'gc, 'cell, C>,
-    ) -> (&'a mut A, &'a mut B, &'a mut C)
+    ) -> (&'a mut A::Output, &'a mut B::Output, &'a mut C::Output)
     where
-        B: Trace + 'a,
-        C: Trace + 'a,
+        B: Rebind<'a> + Trace + 'a,
+        C: Rebind<'a> + Trace + 'a,
     {
         assert_ne!(a.ptr.as_ptr() as usize, b.ptr.as_ptr() as usize);
         assert_ne!(a.ptr.as_ptr() as usize, c.ptr.as_ptr() as usize);
@@ -136,24 +136,28 @@ where
             arena.write_barrier(c);
         }
 
-        let a = unsafe { &mut (*a.get()) };
-        let b = unsafe { &mut (*b.get()) };
-        let c = unsafe { &mut (*c.get()) };
+        let a = unsafe { crate::rebind(&mut (*a.get())) };
+        let b = unsafe { crate::rebind(&mut (*b.get())) };
+        let c = unsafe { crate::rebind(&mut (*c.get())) };
         (a, b, c)
     }
 }
 
 impl<'a, 'gc: 'a, 'cell, T> Gc<'gc, 'cell, T>
 where
-    T: Trace + 'gc + 'a,
+    T: Rebind<'a> + Trace + 'gc + 'a,
 {
     /// Borrow the contained value mutably
     #[inline]
-    pub fn borrow_mut(self, owner: &'a mut CellOwner<'cell>, arena: &Root<'cell>) -> &'a mut T {
+    pub fn borrow_mut(
+        self,
+        owner: &'a mut CellOwner<'cell>,
+        arena: &Root<'cell>,
+    ) -> &'a mut T::Output {
         if T::needs_trace() {
             arena.write_barrier(self);
         }
-        unsafe { owner.borrow_mut(&self.ptr.as_ref().value) }
+        unsafe { crate::rebind(owner.borrow_mut(&self.ptr.as_ref().value)) }
     }
 
     /// Borrow the contained value mutably without requiring access to the arena,
@@ -161,13 +165,13 @@ where
     ///
     /// # Panic
     ///
-    /// Will panic if `T::needs_trace()` returns true.
+    /// Will panic if `<T as Trace>::needs_trace()` returns true.
     #[inline]
-    pub fn borrow_mut_untraced(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
+    pub fn borrow_mut_untraced(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T::Output {
         if T::needs_trace() {
             panic!("called borrow_mut_untraced on pointer which requires tracing")
         }
-        unsafe { owner.borrow_mut(&self.ptr.as_ref().value) }
+        unsafe { crate::rebind(owner.borrow_mut(&self.ptr.as_ref().value)) }
     }
 
     /// Borrow the contained value mutably without requiring access to the arena,
@@ -177,33 +181,23 @@ where
     /// User should guarentee that no new gc pointers can be reached from this pointer after
     /// releasing the borrow.
     #[inline]
-    pub unsafe fn unsafe_borrow_mut(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
-        owner.borrow_mut(&self.ptr.as_ref().value)
+    pub unsafe fn unsafe_borrow_mut(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T::Output {
+        crate::rebind(owner.borrow_mut(&self.ptr.as_ref().value))
     }
 }
 
 impl<'gc, 'cell, T: Sized + Trace> Gc<'gc, 'cell, T> {
+    /// Returns the contained pointer
     pub fn into_ptr(self) -> NonNull<GcBox<'cell, T>> {
         self.ptr
     }
 
     /// # Safety
-    ///
-    /// The pointer given must be one obtained from [`Gc::into_ptr`]
+    /// - The pointer given must be one obtained from [`Gc::into_ptr`]
+    /// - The `'gc` lifetime must be a properly bound lifetime.
     pub unsafe fn from_ptr(ptr: NonNull<GcBox<'cell, T>>) -> Self {
         Gc {
             ptr,
-            marker: PhantomData,
-        }
-    }
-
-    pub fn into_raw(this: Self) -> *mut GcBox<'cell, T> {
-        this.ptr.as_ptr()
-    }
-
-    pub unsafe fn from_raw(ptr: *mut GcBox<'cell, T>) -> Self {
-        Gc {
-            ptr: NonNull::new_unchecked(ptr),
             marker: PhantomData,
         }
     }

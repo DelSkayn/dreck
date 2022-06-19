@@ -46,7 +46,7 @@ fn root() {
 fn rebind_root() {
     new_root!(owner, root);
 
-    let a = alloc_mut(&mut root);
+    let a = alloc_mut(root);
     let a = rebind!(&root, a);
     let b = root.add(1u32);
 

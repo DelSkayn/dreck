@@ -11,7 +11,7 @@ macro_rules! impl_trace_primitive{
             fn trace(&self, _t: Tracer){}
         }
 
-        unsafe impl<'rt> Rebind<'rt> for $ty {
+        unsafe impl<'r> Rebind<'r> for $ty {
             type Output = $ty;
         }
     )*
@@ -37,7 +37,7 @@ macro_rules! impl_trace_tuple{
                 }
             }
 
-            unsafe impl<'rt, $($ty: Rebind<'rt>,)*> Rebind<'rt> for ($($ty,)*){
+            unsafe impl<'r, $($ty: Rebind<'r>,)*> Rebind<'r> for ($($ty,)*){
                 type Output = ($($ty::Output,)*);
             }
     };
@@ -137,50 +137,50 @@ unsafe impl<'gc, 'cell> Trace for Gc<'gc, 'cell, dyn Trace> {
     }
 }
 
-unsafe impl<'a, 'b, T: Rebind<'a>> Rebind<'a> for &'b T
+unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for &'b T
 where
     T::Output: 'b,
 {
     type Output = &'b T::Output;
 }
 
-unsafe impl<'a, 'b, T: Rebind<'a>> Rebind<'a> for &'b mut T
+unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for &'b mut T
 where
     T::Output: 'b,
 {
     type Output = &'b mut T::Output;
 }
 
-unsafe impl<'a, 'b, T: Rebind<'a>> Rebind<'a> for std::pin::Pin<&'b T>
+unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for std::pin::Pin<&'b T>
 where
     T::Output: 'b,
 {
     type Output = std::pin::Pin<&'b T::Output>;
 }
 
-unsafe impl<'a, 'b, T: Rebind<'a>> Rebind<'a> for std::pin::Pin<&'b mut T>
+unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for std::pin::Pin<&'b mut T>
 where
     T::Output: 'b,
 {
     type Output = std::pin::Pin<&'b mut T::Output>;
 }
 
-unsafe impl<'a, T: Rebind<'a>> Rebind<'a> for Vec<T> {
+unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Vec<T> {
     type Output = Vec<T::Output>;
 }
 
-unsafe impl<'a, T: Rebind<'a>> Rebind<'a> for Box<T> {
+unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Box<T> {
     type Output = Box<T::Output>;
 }
 
-unsafe impl<'a, T: Rebind<'a>> Rebind<'a> for Option<T> {
+unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Option<T> {
     type Output = Option<T::Output>;
 }
 
-unsafe impl<'a, T: Rebind<'a>, R: Rebind<'a>> Rebind<'a> for Result<T, R> {
+unsafe impl<'r, T: Rebind<'r>, R: Rebind<'r>> Rebind<'r> for Result<T, R> {
     type Output = Result<T::Output, R::Output>;
 }
 
-unsafe impl<'a, K: Rebind<'a>, V: Rebind<'a>> Rebind<'a> for std::collections::HashMap<K, V> {
+unsafe impl<'r, K: Rebind<'r>, V: Rebind<'r>> Rebind<'r> for std::collections::HashMap<K, V> {
     type Output = std::collections::HashMap<K::Output, V::Output>;
 }
