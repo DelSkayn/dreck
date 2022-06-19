@@ -57,19 +57,17 @@ macro_rules! rebind {
 /// ```
 /// use dreck::{new_root,rebind, root};
 ///
-/// fn main(){
-///     new_root!(owner,root);
+/// new_root!(owner,root);
 ///
-///     let ptr = root.add(1);
+/// let ptr = root.add(1);
 ///
-///     // Not allowed as ptr is dangling.
-///     // root.collect()
+/// // Not allowed as ptr is dangling.
+/// // root.collect()
 ///
-///     root!(&root,ptr);
-///     // ptr is rooted and detached from root allowing garbage collection.
-///     root.collect(owner);
-///     assert_eq!(*ptr.borrow(owner),1);
-/// }
+/// root!(&root,ptr);
+/// // ptr is rooted and detached from root allowing garbage collection.
+/// root.collect(owner);
+/// assert_eq!(*ptr.borrow(owner),1);
 ///
 /// ```
 #[macro_export]

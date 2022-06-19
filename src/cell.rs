@@ -46,23 +46,25 @@ macro_rules! new_cell_owner {
 // -- The lcell from qcell crate
 
 /// The owner of all values in [`LCell`]'s with the same lifetime.
-pub struct CellOwner<'rt>(pub(crate) Invariant<'rt>);
+pub struct CellOwner<'cell>(pub(crate) Invariant<'cell>);
 
-impl<'rt> CellOwner<'rt> {
-    // Create a new Cell owener
-    pub unsafe fn new(id: Invariant<'rt>) -> Self {
+impl<'cell> CellOwner<'cell> {
+    /// Create a new Cell owener
+    /// # Safety
+    /// It is unsafe to create a two CellOwners of the same `'cell` lifetime
+    pub unsafe fn new(id: Invariant<'cell>) -> Self {
         CellOwner(id)
     }
 
     /// Shared borrow the value in the cell.
     #[inline(always)]
-    pub fn borrow<'a, T: ?Sized>(&'a self, cell: &LCell<'rt, T>) -> &'a T {
+    pub fn borrow<'a, T: ?Sized>(&'a self, cell: &LCell<'cell, T>) -> &'a T {
         unsafe { &(*cell.value.get()) }
     }
 
     /// Mutable borrow the value in the cell.
     #[inline(always)]
-    pub fn borrow_mut<'a, T: ?Sized>(&'a mut self, cell: &LCell<'rt, T>) -> &'a mut T {
+    pub fn borrow_mut<'a, T: ?Sized>(&'a mut self, cell: &LCell<'cell, T>) -> &'a mut T {
         unsafe { &mut (*cell.value.get()) }
     }
 }
@@ -79,14 +81,14 @@ impl<'rt> CellOwner<'rt> {
 /// assert_eq!(*c1.borrow(&owner), 2);
 ///
 /// ```
-pub struct LCell<'rt, T: ?Sized> {
-    _id: Invariant<'rt>,
+pub struct LCell<'cell, T: ?Sized> {
+    _id: Invariant<'cell>,
     value: UnsafeCell<T>,
 }
 
-impl<'rt, T> LCell<'rt, T> {
+impl<'cell, T> LCell<'cell, T> {
     #[inline]
-    pub fn new(value: T) -> LCell<'rt, T> {
+    pub fn new(value: T) -> LCell<'cell, T> {
         unsafe {
             LCell {
                 _id: Invariant::new(),
@@ -96,14 +98,14 @@ impl<'rt, T> LCell<'rt, T> {
     }
 }
 
-impl<'rt, T: ?Sized> LCell<'rt, T> {
+impl<'cell, T: ?Sized> LCell<'cell, T> {
     /// Borrow the contained value.
-    pub fn borrow<'a>(&'a self, owner: &'a CellOwner<'rt>) -> &'a T {
+    pub fn borrow<'a>(&'a self, owner: &'a CellOwner<'cell>) -> &'a T {
         owner.borrow(self)
     }
 
     /// Mutable borrow the contained value.
-    pub fn borrow_mut<'a>(&'a self, owner: &'a mut CellOwner<'rt>) -> &'a mut T {
+    pub fn borrow_mut<'a>(&'a self, owner: &'a mut CellOwner<'cell>) -> &'a mut T {
         owner.borrow_mut(self)
     }
 

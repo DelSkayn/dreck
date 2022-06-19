@@ -109,6 +109,7 @@ pub struct RootGuard<'cell>(*const Root<'cell>);
 
 impl<'cell> RootGuard<'cell> {
     /// Rebind a value to the lifetime of the root guard.
+    /// # Safety
     /// This method should only ever be called with the object this root guard was created in
     /// [`Root::root_gc`].
     pub unsafe fn bind<'a, R: Rebind<'a>>(&'a self, r: R) -> R::Output {
