@@ -51,19 +51,19 @@ pub struct CellOwner<'cell>(pub(crate) Invariant<'cell>);
 impl<'cell> CellOwner<'cell> {
     /// Create a new Cell owener
     /// # Safety
-    /// It is unsafe to create a two CellOwners of the same `'cell` lifetime
+    /// It is unsafe to create a two `CellOwner` objects of the same `'cell` lifetime
     pub unsafe fn new(id: Invariant<'cell>) -> Self {
         CellOwner(id)
     }
 
     /// Shared borrow the value in the cell.
-    #[inline(always)]
+    #[inline]
     pub fn borrow<'a, T: ?Sized>(&'a self, cell: &LCell<'cell, T>) -> &'a T {
         unsafe { &(*cell.value.get()) }
     }
 
     /// Mutable borrow the value in the cell.
-    #[inline(always)]
+    #[inline]
     pub fn borrow_mut<'a, T: ?Sized>(&'a mut self, cell: &LCell<'cell, T>) -> &'a mut T {
         unsafe { &mut (*cell.value.get()) }
     }

@@ -81,7 +81,7 @@ where
     A: Rebind<'a> + Trace + 'a,
 {
     /// Borrow the two gc pointers mutably.
-    /// # panic
+    /// # Panics
     /// This method will panic if both pointers point to the same object.
     #[inline]
     pub fn borrow_mut_2<B>(
@@ -108,7 +108,7 @@ where
     }
 
     /// Borrow the three gc pointers mutably.
-    /// # panic
+    /// # Panics
     /// This method will panic if any of the pointers point to the same object.
     #[inline]
     pub fn borrow_mut_3<'rt, B, C>(
@@ -168,9 +168,10 @@ where
     /// Will panic if `<T as Trace>::needs_trace()` returns true.
     #[inline]
     pub fn borrow_mut_untraced(self, owner: &'a mut CellOwner<'cell>) -> &'a mut T::Output {
-        if T::needs_trace() {
-            panic!("called borrow_mut_untraced on pointer which requires tracing")
-        }
+        assert!(
+            !T::needs_trace(),
+            "called borrow_mut_untraced on pointer which requires tracing"
+        );
         unsafe { crate::rebind(owner.borrow_mut(&self.ptr.as_ref().value)) }
     }
 

@@ -1,3 +1,5 @@
+use std::hash;
+
 use super::{Gc, Rebind, Trace, Tracer};
 
 macro_rules! impl_trace_primitive{
@@ -181,6 +183,8 @@ unsafe impl<'r, T: Rebind<'r>, R: Rebind<'r>> Rebind<'r> for Result<T, R> {
     type Output = Result<T::Output, R::Output>;
 }
 
-unsafe impl<'r, K: Rebind<'r>, V: Rebind<'r>> Rebind<'r> for std::collections::HashMap<K, V> {
-    type Output = std::collections::HashMap<K::Output, V::Output>;
+unsafe impl<'r, K: Rebind<'r>, V: Rebind<'r>, S: hash::BuildHasher> Rebind<'r>
+    for std::collections::HashMap<K, V, S>
+{
+    type Output = std::collections::HashMap<K::Output, V::Output, S>;
 }

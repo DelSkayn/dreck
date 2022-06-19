@@ -197,28 +197,30 @@ where
 /// collections.
 /// If a collection is traced it is safe to rebind objects which are to be contained to the `'gc` lifetime of
 /// the collection.
+///
+/// # Panics
+///
+/// This function will panic if the [`Rebind`] trait is implemented in correctly and `T` and
+/// `T::Output` have different sizes.
 #[inline(always)] // this should compile down to nothing
 pub unsafe fn rebind<'rt, T>(v: T) -> T::Output
 where
     T: Rebind<'rt>,
 {
     use std::mem::ManuallyDrop;
-
-    //TODO: compiler error using static assertions?
-    if std::mem::size_of::<T>() != std::mem::size_of::<T::Output>() {
-        panic!(
-            "type `{}` implements rebind but its `Output` is a different size. `{}` is {} bytes in size but `{}` is {} bytes",
-            std::any::type_name::<T>(),
-            std::any::type_name::<T>(),
-            std::mem::size_of::<T>(),
-            std::any::type_name::<T::Output>(),
-            std::mem::size_of::<T::Output>(),
-        );
-    }
     union Transmute<T, U> {
         a: ManuallyDrop<T>,
         b: ManuallyDrop<U>,
     }
+
+    //TODO: compiler error using static assertions?
+    assert_eq!(
+        std::mem::size_of::<T>(),
+        std::mem::size_of::<T::Output>(),
+        "type `{}` implements rebind but its `Output` ({}) is a different size",
+        std::any::type_name::<T>(),
+        std::any::type_name::<T::Output>(),
+    );
 
     ManuallyDrop::into_inner(
         (Transmute {

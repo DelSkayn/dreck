@@ -158,7 +158,9 @@ impl<'cell> Root<'cell> {
             _marker: owner.0,
         }
     }
+
     /// Allocated a value as a garbage collected pointer.
+    #[must_use]
     pub fn add<'gc, T>(&'gc self, v: T) -> Gc<'gc, 'cell, T::Output>
     where
         T: Rebind<'gc>,
