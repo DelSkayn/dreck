@@ -1,11 +1,11 @@
 use dreck::*;
 
-struct DerefDrop<'gc, 'cell> {
-    ptr: Gc<'gc, 'cell, i32>,
-    owner: CellOwner<'cell>,
+struct DerefDrop<'gc, 'own> {
+    ptr: Gc<'gc, 'own, i32>,
+    owner: Owner<'own>,
 }
 
-unsafe impl<'gc, 'cell> Trace for DerefDrop<'gc, 'cell> {
+unsafe impl<'gc, 'own> Trace<'own> for DerefDrop<'gc, 'own> {
     fn needs_trace() -> bool
     where
         Self: Sized,
@@ -13,17 +13,16 @@ unsafe impl<'gc, 'cell> Trace for DerefDrop<'gc, 'cell> {
         true
     }
 
-    fn trace(&self, trace: Tracer) {
+    fn trace<'t>(&self, trace: Tracer<'t,'own>) {
         trace.mark(self.ptr);
     }
 }
 
-unsafe impl<'r, 'rcell, 'gc, 'cell> Rebind<'r, 'rcell> for DerefDrop<'gc, 'cell> {
-    type Gc = DerefDrop<'r, 'cell>;
-    type Cell = DerefDrop<'gc, 'rcell>;
+unsafe impl<'from,'to, 'own> Bound<'to> for DerefDrop<'from, 'own> {
+    type Rebound = DerefDrop<'to, 'own>;
 }
 
-impl<'gc, 'cell> Drop for DerefDrop<'gc, 'cell> {
+impl<'gc, 'own> Drop for DerefDrop<'gc, 'own> {
     fn drop(&mut self) {
         // Accessing ptr in drop, very unsafe.
         self.ptr.borrow(&self.owner);

@@ -103,8 +103,20 @@ macro_rules! root {
 macro_rules! new_root {
     ($owner:ident, $root:ident) => {
         let tag = unsafe { $crate::marker::Invariant::new() };
+        let _cell_owner;
         #[allow(unused_mut)]
         let mut $owner = unsafe { &mut $crate::Owner::new(tag) };
+        {
+            if false {
+                #[allow(non_camel_case_types)]
+                struct new_cell_owner<'id>(&'id $crate::marker::Invariant<'id>);
+                impl<'id> ::core::ops::Drop for new_cell_owner<'id> {
+                    fn drop(&mut self) {}
+                }
+                _cell_owner = new_cell_owner(&tag);
+            }
+        }
+
         let mut __root = unsafe { $crate::Root::new(&$owner) };
         let $root = &mut __root;
     };

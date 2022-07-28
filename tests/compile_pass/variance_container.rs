@@ -1,8 +1,8 @@
 use dreck::*;
 
-pub struct Container<'gc, 'cell>(Option<Gc<'gc, 'cell, Container<'gc, 'cell>>>);
+pub struct Container<'gc, 'own>(Option<Gc<'gc, 'own, Container<'gc, 'own>>>);
 
-unsafe impl<'gc, 'cell> Trace for Container<'gc, 'cell> {
+unsafe impl<'gc, 'own> Trace<'own> for Container<'gc, 'own> {
     fn needs_trace() -> bool
     where
         Self: Sized,
@@ -10,24 +10,24 @@ unsafe impl<'gc, 'cell> Trace for Container<'gc, 'cell> {
         true
     }
 
-    fn trace(&self, trace: dreck::Tracer) {
+    fn trace<'r>(&self, trace: Tracer<'r,'own>) {
         self.0.trace(trace)
     }
 }
 
-unsafe impl<'a, 'gc, 'cell> Rebind<'a> for Container<'gc, 'cell> {
-    type Output = Container<'a, 'cell>;
+unsafe impl<'from, 'to, 'own> Bound<'to> for Container<'from, 'own> {
+    type Rebound = Container<'to, 'own>;
 }
 
-fn foo<'cell>(root: &Root<'cell>, a: Gc<'_, 'cell, Container<'_, 'cell>>) {
+fn foo<'own>(root: &Root<'own>, a: Gc<'_, 'own, Container<'_, 'own>>) {
     let b_inner = root.add(Container(None));
     let b = root.add(Container(Some(b_inner)));
     coerce_same(a, b);
 }
 
-fn coerce_same<'gc, 'cell>(
-    _: Gc<'gc, 'cell, Container<'gc, 'cell>>,
-    _: Gc<'gc, 'cell, Container<'gc, 'cell>>,
+fn coerce_same<'gc, 'own>(
+    _: Gc<'gc, 'own, Container<'gc, 'own>>,
+    _: Gc<'gc, 'own, Container<'gc, 'own>>,
 ) {
 }
 

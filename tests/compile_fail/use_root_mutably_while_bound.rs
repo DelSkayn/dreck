@@ -1,6 +1,6 @@
 use dreck::*;
 
-fn use_root<'cell>(owner: &CellOwner<'cell>, root: &mut Root<'cell>, _: Gc<'_, 'cell, i32>) {
+fn use_root<'own>(owner: &Owner<'own>, root: &mut Root<'own>, _: Gc<'_, 'own, i32>) {
     root.collect_full(owner);
 }
 

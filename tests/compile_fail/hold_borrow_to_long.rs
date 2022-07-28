@@ -1,11 +1,11 @@
 use dreck::*;
 
 fn main() {
-    new_cell_owner!(owner);
+    let owner = unsafe{ Owner::new(marker::Invariant::new())};
     let a = {
-        let root = unsafe { Root::new(owner) };
+        let root = unsafe { Root::new(&owner) };
         let a = root.add(0);
-        a.borrow(owner)
+        a.borrow(&owner)
     };
     assert_eq!(*a, 0);
 }

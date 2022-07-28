@@ -1,6 +1,6 @@
 use dreck::*;
 
-fn coerce_same<'gc, 'cell, A, B>(_: Gc<'gc, 'cell, A>, _: Gc<'gc, 'cell, B>) {}
+fn coerce_same<'gc, 'own, A: Trace<'own>, B: Trace<'own>>(_: Gc<'gc, 'own, A>, _: Gc<'gc, 'own, B>) {}
 
 fn main() {
     new_root!(owner, root);

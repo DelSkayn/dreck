@@ -3,7 +3,7 @@ error[E0597]: `root` does not live long enough
   |
 7 |         let a = root.add(0);
   |                 ^^^^^^^^^^^ borrowed value does not live long enough
-8 |         a.borrow_mut_untraced(owner)
-  |         ---------------------------- borrow later used here
+8 |         a.borrow_mut_untraced(&mut owner)
+  |         --------------------------------- borrow later used here
 9 |     };
   |     - `root` dropped here while still borrowed

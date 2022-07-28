@@ -11,4 +11,4 @@ error[E0597]: `tag` does not live long enough
    | borrow might be used here, when `_cell_owner` is dropped and runs the `Drop` code for type `main::new_cell_owner`
    |
    = note: values in a scope are dropped in the opposite order they are defined
-   = note: this error originates in the macro `$crate::new_cell_owner` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `new_root` (in Nightly builds, run with -Z macro-backtrace for more info)

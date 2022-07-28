@@ -3,9 +3,9 @@ error[E0597]: `root` does not live long enough
   |
 5 |     let a = {
   |         - borrow later stored here
-6 |         let root = unsafe { Root::new(owner) };
+6 |         let root = unsafe { Root::new(&owner) };
 7 |         let a = root.add(0);
   |                 ^^^^^^^^^^^ borrowed value does not live long enough
-8 |         a.borrow(owner)
+8 |         a.borrow(&owner)
 9 |     };
   |     - `root` dropped here while still borrowed

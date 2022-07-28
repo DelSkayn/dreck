@@ -221,10 +221,10 @@ impl<'own> Root<'own> {
     ///
     /// On should prefer the [`rebind!`](crate::rebind!) macro instead of this function as it is more permissive
     /// with which pointers it allows rebinding.
-    pub fn rebind_to<'a, T: Trace<'own> + Bound<'a> + 'a>(
-        &'a self,
+    pub fn rebind_to<'r, T: Trace<'own> + Bound<'r> + 'r>(
+        &'r self,
         t: Gc<'_, 'own, T>,
-    ) -> Gc<'a, 'own, T::Rebound>
+    ) -> Gc<'r, 'own, T::Rebound>
     where
         T::Rebound: Trace<'own>,
     {

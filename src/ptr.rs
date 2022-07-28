@@ -4,7 +4,7 @@ use std::{
     ptr::{addr_of, NonNull},
 };
 
-use crate::{marker::Invariant, Owner, Root, Trace};
+use crate::{Bound, Owner, Root, Trace, marker::Invariant};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Color {
@@ -18,7 +18,6 @@ pub(crate) type DynGcBoxPtr<'own, 'v> = NonNull<GcBox<'own, dyn Trace<'own> + 'v
 
 /// The pointer type contained within a [`Gc`] pointer.
 pub type GcBoxPtr<'own,T> = NonNull<GcBox<'own, T>>;
-
 
 
 pub(crate) struct GcBoxHead<'own> {
@@ -49,17 +48,23 @@ impl<'gc, 'own, T: Trace<'own> + ?Sized> Clone for Gc<'gc, 'own, T> {
     }
 }
 
-impl<'gc, 'own, T: Trace<'own> + Sized> Gc<'gc, 'own, T> {
-    pub fn borrow<'r>(self, _owner: &'r Owner<'own>) -> &'r T {
+impl<'r,'gc: 'r, 'own, T: Trace<'own> + Sized> Gc<'gc, 'own, T> {
+    pub fn borrow(self, _owner: &'r Owner<'own>) -> &'r T {
         unsafe { &(*self.ptr.as_ptr().cast::<GcBox<T>>()).value }
     }
+}
 
-    pub fn borrow_mut<'r>(self, _owner: &'r mut Owner<'own>, root: &Root<'own>) -> &'r mut T {
+
+impl<'r,'gc: 'r, 'own, T> Gc<'gc, 'own, T> 
+where
+    T : Trace<'own> + Bound<'r> + Sized + 'r
+{
+    pub fn borrow_mut(self, _owner: &'r mut Owner<'own>, root: &Root<'own>) -> &'r mut T::Rebound {
         root.write_barrier(self);
-        unsafe { &mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value }
+        unsafe { crate::rebind(&mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value) }
     }
 
-    pub fn borrow_mut_untraced<'r>(self, _owner: &'r mut Owner<'own>) -> &'r mut T {
+    pub fn borrow_mut_untraced(self, _owner: &'r mut Owner<'own>) -> &'r mut T {
         assert!(
             !T::needs_trace(),
             "called borrow_mut_untraced on pointer which requires tracing ({}::needs_trace() returns true)",
