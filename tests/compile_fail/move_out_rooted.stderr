@@ -1,20 +1,20 @@
 error[E0502]: cannot borrow `*owner` as immutable because it is also borrowed as mutable
-  --> tests/compile_fail/move_out_rooted.rs:32:23
+  --> tests/compile_fail/move_out_rooted.rs:33:23
    |
-31 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
+32 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
    |                            ----- mutable borrow occurs here
-32 |     root.collect_full(owner);
+33 |     root.collect_full(owner);
    |                       ^^^^^ immutable borrow occurs here
-33 |     assert!(v.borrow(owner).0.is_none());
+34 |     assert!(v.borrow(owner).0.is_none());
    |             - mutable borrow later used here
 
 error[E0502]: cannot borrow `*owner` as immutable because it is also borrowed as mutable
-  --> tests/compile_fail/move_out_rooted.rs:33:22
+  --> tests/compile_fail/move_out_rooted.rs:34:22
    |
-31 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
+32 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
    |                            ----- mutable borrow occurs here
-32 |     root.collect_full(owner);
-33 |     assert!(v.borrow(owner).0.is_none());
+33 |     root.collect_full(owner);
+34 |     assert!(v.borrow(owner).0.is_none());
    |               ------ ^^^^^ immutable borrow occurs here
    |               |
    |               mutable borrow later used by call

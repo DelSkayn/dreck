@@ -1,11 +1,8 @@
-use std::hash;
-
-use super::{Gc, Rebind, Trace, Tracer};
-
+use super::{Bound, Gc, Trace, Tracer};
 macro_rules! impl_trace_primitive{
 ($($ty:ident,)*) => {
     $(
-        unsafe impl Trace for $ty{
+        unsafe impl<'own> Trace<'own> for $ty{
             fn needs_trace() -> bool{
                 false
             }
@@ -13,8 +10,8 @@ macro_rules! impl_trace_primitive{
             fn trace(&self, _t: Tracer){}
         }
 
-        unsafe impl<'r> Rebind<'r> for $ty {
-            type Output = $ty;
+        unsafe impl<'to> Bound<'to> for $ty {
+            type Rebound = $ty;
         }
     )*
 };
@@ -28,19 +25,19 @@ macro_rules! impl_trace_tuple{
     ($($ty:ident),*) => {
             #[allow(non_snake_case)]
             #[allow(unused_variables)]
-            unsafe impl<$($ty:Trace,)*> Trace for ($($ty,)*){
+            unsafe impl<'own,$($ty:Trace<'own>,)*> Trace<'own> for ($($ty,)*){
                 fn needs_trace() -> bool{
                     false $(|| $ty::needs_trace())*
                 }
 
-                fn trace(&self, t: Tracer){
+                fn trace<'a>(&self, t: Tracer<'a,'own>){
                     let ($(ref $ty,)*) = self;
                     $($ty.trace(t);)*
                 }
             }
 
-            unsafe impl<'r, $($ty: Rebind<'r>,)*> Rebind<'r> for ($($ty,)*){
-                type Output = ($($ty::Output,)*);
+            unsafe impl<'to,$($ty: Bound<'to>,)*> Bound<'to> for ($($ty,)*){
+                type Rebound = ($($ty::Rebound,)*);
             }
     };
 }
@@ -55,78 +52,7 @@ impl_trace_tuple!(A, B, C, D, E, F);
 impl_trace_tuple!(A, B, C, D, E, F, G);
 impl_trace_tuple!(A, B, C, D, E, F, G, H);
 
-unsafe impl<T: Trace> Trace for Option<T> {
-    fn needs_trace() -> bool
-    where
-        Self: Sized,
-    {
-        T::needs_trace()
-    }
-
-    fn trace(&self, trace: Tracer) {
-        if let Some(ref x) = *self {
-            x.trace(trace);
-        }
-    }
-}
-
-unsafe impl<T: Trace> Trace for Box<T> {
-    fn needs_trace() -> bool
-    where
-        Self: Sized,
-    {
-        T::needs_trace()
-    }
-
-    fn trace(&self, trace: Tracer) {
-        (**self).trace(trace);
-    }
-}
-
-unsafe impl<T: Trace> Trace for [T] {
-    fn needs_trace() -> bool
-    where
-        Self: Sized,
-    {
-        T::needs_trace()
-    }
-
-    fn trace(&self, trace: Tracer) {
-        for t in self {
-            t.trace(trace);
-        }
-    }
-}
-
-unsafe impl<T: Trace> Trace for Vec<T> {
-    fn needs_trace() -> bool
-    where
-        Self: Sized,
-    {
-        T::needs_trace()
-    }
-
-    fn trace(&self, trace: Tracer) {
-        for t in self {
-            t.trace(trace);
-        }
-    }
-}
-
-unsafe impl<'gc, 'cell, T: Trace> Trace for Gc<'gc, 'cell, T> {
-    fn needs_trace() -> bool
-    where
-        Self: Sized,
-    {
-        T::needs_trace()
-    }
-
-    fn trace(&self, trace: Tracer) {
-        trace.mark(*self);
-    }
-}
-
-unsafe impl<'gc, 'cell> Trace for Gc<'gc, 'cell, dyn Trace> {
+unsafe impl<'gc, 'own, T: Trace<'own>> Trace<'own> for Gc<'gc, 'own, T> {
     fn needs_trace() -> bool
     where
         Self: Sized,
@@ -134,57 +60,61 @@ unsafe impl<'gc, 'cell> Trace for Gc<'gc, 'cell, dyn Trace> {
         true
     }
 
-    fn trace(&self, trace: Tracer) {
-        trace.mark_dynamic(*self);
+    fn trace<'a>(&self, t: Tracer<'a, 'own>) {
+        t.mark(*self)
     }
 }
 
-unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for &'b T
+unsafe impl<'to, 'from, 'own, T> Bound<'to> for Gc<'from, 'own, T>
 where
-    T::Output: 'b,
+    T: Trace<'own> + Bound<'to>,
+    T::Rebound: Trace<'own> + 'to,
 {
-    type Output = &'b T::Output;
+    type Rebound = Gc<'to, 'own, T::Rebound>;
 }
 
-unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for &'b mut T
+unsafe impl<'own, T: Trace<'own>> Trace<'own> for Vec<T> {
+    fn needs_trace() -> bool
+    where
+        Self: Sized,
+    {
+        T::needs_trace()
+    }
+
+    fn trace<'a>(&self, t: Tracer<'a, 'own>) {
+        for v in self {
+            v.trace(t);
+        }
+    }
+}
+
+unsafe impl<'to, T: Bound<'to>> Bound<'to> for Vec<T> {
+    type Rebound = Vec<T::Rebound>;
+}
+
+unsafe impl<'own, T: Trace<'own>> Trace<'own> for Option<T> {
+    fn needs_trace() -> bool
+    where
+        Self: Sized,
+    {
+        T::needs_trace()
+    }
+
+    fn trace(&self, t: Tracer<'_, 'own>) {
+        if let Some(v) = self.as_ref() {
+            v.trace(t);
+        }
+    }
+}
+
+unsafe impl<'to, T: Bound<'to>> Bound<'to> for Option<T> {
+    type Rebound = Option<T::Rebound>;
+}
+
+unsafe impl<'a, 'to, T, R> Bound<'to> for &'a mut T
 where
-    T::Output: 'b,
+    T: Bound<'to, Rebound = R>,
+    R: 'a,
 {
-    type Output = &'b mut T::Output;
-}
-
-unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for std::pin::Pin<&'b T>
-where
-    T::Output: 'b,
-{
-    type Output = std::pin::Pin<&'b T::Output>;
-}
-
-unsafe impl<'r, 'b, T: Rebind<'r>> Rebind<'r> for std::pin::Pin<&'b mut T>
-where
-    T::Output: 'b,
-{
-    type Output = std::pin::Pin<&'b mut T::Output>;
-}
-
-unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Vec<T> {
-    type Output = Vec<T::Output>;
-}
-
-unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Box<T> {
-    type Output = Box<T::Output>;
-}
-
-unsafe impl<'r, T: Rebind<'r>> Rebind<'r> for Option<T> {
-    type Output = Option<T::Output>;
-}
-
-unsafe impl<'r, T: Rebind<'r>, R: Rebind<'r>> Rebind<'r> for Result<T, R> {
-    type Output = Result<T::Output, R::Output>;
-}
-
-unsafe impl<'r, K: Rebind<'r>, V: Rebind<'r>, S: hash::BuildHasher> Rebind<'r>
-    for std::collections::HashMap<K, V, S>
-{
-    type Output = std::collections::HashMap<K::Output, V::Output, S>;
+    type Rebound = &'a mut R;
 }

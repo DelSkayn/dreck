@@ -18,8 +18,9 @@ unsafe impl<'gc, 'cell> Trace for DerefDrop<'gc, 'cell> {
     }
 }
 
-unsafe impl<'a, 'gc, 'cell> Rebind<'a> for DerefDrop<'gc, 'cell> {
-    type Output = DerefDrop<'gc, 'cell>;
+unsafe impl<'r, 'rcell, 'gc, 'cell> Rebind<'r, 'rcell> for DerefDrop<'gc, 'cell> {
+    type Gc = DerefDrop<'r, 'cell>;
+    type Cell = DerefDrop<'gc, 'rcell>;
 }
 
 impl<'gc, 'cell> Drop for DerefDrop<'gc, 'cell> {

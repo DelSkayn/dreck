@@ -70,8 +70,9 @@ unsafe impl<'gc, 'cell> Trace for Container<'gc, 'cell> {
     }
 }
 
-unsafe impl<'a, 'gc, 'cell> Rebind<'a> for Container<'gc, 'cell> {
-    type Output = Container<'a, 'cell>;
+unsafe impl<'r, 'rcell, 'gc, 'cell> Bound<'r, 'rcell> for Container<'gc, 'cell> {
+    type Gc = Container<'r, 'cell>;
+    type Cell = Container<'gc, 'rcell>;
 }
 
 #[test]

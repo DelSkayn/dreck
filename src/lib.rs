@@ -1,24 +1,40 @@
-pub mod cell;
-pub use cell::CellOwner;
+mod impl_trait;
+pub mod marker;
+
+mod root;
+use marker::Invariant;
+pub use root::{Root, RootGuard, Tracer};
 
 mod ptr;
 pub use ptr::Gc;
 
-mod root;
-pub use root::{Root, RootGuard, Tracer};
-
-mod impl_trait;
 
 /// Rebind a [`Gc`] object to a [`Root`].
 ///
+/// Gc pointers lifetime can be freely rebound to the lifetime of the arena at any time.
+/// This macro has two primary uses:
+///
+///
+/// The first is to rebind a `Gc` pointer returned a function which takes a mutable reference 
+/// to the arena. A pointer returned by such a function is bound to a mutable arena which prevents
+/// one from allocating new bc pointer for as long as the returned value lives. By rebinding
+/// the returned `Gc` pointer the pointer will be bound to a immutable borrow which does allow
+/// allocating new values.
+///
+/// The second use is to rebind a `Gc` pointer from a rooted pointer. Once a pointer is rooted the
+/// pointer will only remain alive for the duration of the scope in which the pointer is rooted if
+/// the pointer needs to escape that lifetime rebinding the rooted pointer again to the arena
+/// allows it to life for the lifetime of the arena.
+///
+///
 /// # Example
 /// ```
-/// use dreck::{Gc,Root,CellOwner,rebind, root};
+/// use dreck::{Gc,Root,Owner,rebind, root};
 ///
-/// fn use_and_collect<'r,'cell>(
-///     owner: &CellOwner<'cell>,
-///     root: &'r mut Root<'cell>,
-///     ptr: Gc<'r,'cell,u32>) -> Gc<'r,'cell,u32>{
+/// fn use_and_collect<'r,'own>(
+///     owner: &Owner<'own>,
+///     root: &'r mut Root<'own>,
+///     ptr: Gc<'r,'own,u32>) -> Gc<'r,'own,u32>{
 ///
 ///     if *ptr.borrow(owner) == 0{
 ///         root!(&root,ptr);
@@ -65,7 +81,7 @@ macro_rules! rebind {
 /// // root.collect()
 ///
 /// root!(&root,ptr);
-/// // ptr is rooted and detached from root allowing garbage collection.
+/// // ptr is rooted and detached from the root borrow allowing garbage collection.
 /// root.collect(owner);
 /// assert_eq!(*ptr.borrow(owner),1);
 ///
@@ -80,13 +96,15 @@ macro_rules! root {
     };
 }
 
-/// Create a new [`CellOwner`] and [`Root`]
+/// Create a new [`Owner`] and [`Root`]
 ///
 /// This macro is the only way to safely create a [`Root`] object.
 #[macro_export]
 macro_rules! new_root {
     ($owner:ident, $root:ident) => {
-        $crate::new_cell_owner!($owner);
+        let tag = unsafe { $crate::marker::Invariant::new() };
+        #[allow(unused_mut)]
+        let mut $owner = unsafe { &mut $crate::Owner::new(tag) };
         let mut __root = unsafe { $crate::Root::new(&$owner) };
         let $root = &mut __root;
     };
@@ -107,12 +125,12 @@ macro_rules! new_root {
 ///
 /// ```
 /// use dreck::{Gc,Trace, Tracer};
-/// pub struct Container<'gc, 'cell> {
-///     text: Gc<'gc, 'cell, String>,
-///     vec: Vec<Gc<'gc,'cell,i32>>
+/// pub struct Container<'gc, 'own> {
+///     text: Gc<'gc, 'own, String>,
+///     vec: Vec<Gc<'gc,'own,i32>>
 /// }
 ///
-/// unsafe impl<'gc, 'cell> Trace for Container<'gc, 'cell> {
+/// unsafe impl<'gc, 'own> Trace<'own> for Container<'gc, 'own> {
 ///     fn needs_trace() -> bool
 ///     where
 ///         Self: Sized,
@@ -120,45 +138,51 @@ macro_rules! new_root {
 ///         true
 ///     }
 ///
-///     fn trace(&self, trace: Tracer) {
+///     fn trace<'a>(&self, trace: Tracer<'a,'own>) {
 ///         // you can also call `self.text.trace(trace)`.
 ///         trace.mark(self.text);
 ///         self.vec.trace(trace);
 ///     }
 /// }
 /// ```
-pub unsafe trait Trace {
-    /// Returns whether the type can contain any `Gc` pointers and needs to be traced.
-    ///
-    /// The value returned is used as an optimization.
-    /// Returning true when a type cannot contain any `Gc` pointers is completely safe.
+pub unsafe trait Trace<'own> {
     fn needs_trace() -> bool
     where
         Self: Sized;
 
-    /// Traces the type for any gc pointers.
-    fn trace(&self, trace: Tracer);
+    fn trace<'a>(&self, tracer: Tracer<'a, 'own>);
+}
+
+/// Owner of the [`Gc`] pointers.
+///
+/// A borrow to this struct is required to access values contained in Gc pointers.
+pub struct Owner<'own>(pub(crate) marker::Invariant<'own>);
+
+impl<'own> Owner<'own> {
+    pub unsafe fn new(invariant: Invariant<'own>) -> Self {
+        Owner(invariant)
+    }
 }
 
 /// Trait which indicates a Gc'd object who's lifetimes can be rebound.
 ///
 /// # Safety
-/// Implementor must ensure that the output only changes the `'gc` lifetime.
+/// Implementor must ensure that the associated types only change the approriate lifetimes:
+/// `Bound::Rebound` only changes the 'gc.
 ///
 /// # Example
 ///
 /// ```
-/// use dreck::{Gc,Rebind};
-/// pub struct Container<'gc,'cell>(Gc<'gc,'cell, String>);
+/// use dreck::{Gc,Bound};
+/// pub struct Container<'gc,'own>(Gc<'gc,'own, String>);
 ///
-/// // Change the 'gc lifetime into 'r
-/// unsafe impl<'r,'gc,'cell> Rebind<'r> for Container<'gc,'cell>{
-///     type Output = Container<'r,'cell>;
+/// unsafe impl<'from,'own,'to> Bound<'to> for Container<'from,'own>{
+///     // Change the 'from lifetime into 'to
+///     type Rebound = Container<'to,'own>;
 /// }
 /// ```
-pub unsafe trait Rebind<'a> {
-    /// The output type which has its `'gc` lifetime changed to the rebind lifetime.
-    type Output;
+pub unsafe trait Bound<'gc> {
+    type Rebound;
 }
 
 /// Rebind a value to the lifetime of a given borrow.
@@ -167,9 +191,9 @@ pub unsafe trait Rebind<'a> {
 ///
 /// See [`rebind()`]
 #[inline(always)] // this should compile down to nothing
-pub unsafe fn rebind_to<'rt, R, T>(_: &'rt R, v: T) -> T::Output
+pub unsafe fn rebind_to<'to, R, T>(_: &'to R, v: T) -> T::Rebound
 where
-    T: Rebind<'rt>,
+    T: Bound<'to>,
 {
     rebind(v)
 }
@@ -185,7 +209,7 @@ where
 /// In the context of the dreck crate, `rebind` can be used to change the `'gc` lifetime of a object
 /// to some other `'gc` lifetime; either the lifetime of an other gc'd object or a [`Root`] borrow.
 ///
-/// Rebinding to a borrowed [`Root`] of the same `'cell` lifetime is always safe to do
+/// Rebinding to a borrowed [`Root`] of the same `'own` lifetime is always safe to do
 /// as holding onto an root borrow prevents one from running garbage collection.
 /// One should always prefer the safe [`rebind!`] macro for rebinding a value to a [`Root`] borrow.
 ///
@@ -200,12 +224,12 @@ where
 ///
 /// # Panics
 ///
-/// This function will panic if the [`Rebind`] trait is implemented in correctly and `T` and
-/// `T::Output` have different sizes.
+/// This function will panic if the [`Bound`] trait is implemented in correctly and `T` and
+/// `T::Rebound` have different sizes.
 #[inline(always)] // this should compile down to nothing
-pub unsafe fn rebind<'rt, T>(v: T) -> T::Output
+pub unsafe fn rebind<'r, T>(v: T) -> T::Rebound
 where
-    T: Rebind<'rt>,
+    T: Bound<'r>,
 {
     use std::mem::ManuallyDrop;
     union Transmute<T, U> {
@@ -216,10 +240,10 @@ where
     //TODO: compiler error using static assertions?
     assert_eq!(
         std::mem::size_of::<T>(),
-        std::mem::size_of::<T::Output>(),
-        "type `{}` implements rebind but its `Output` ({}) is a different size",
+        std::mem::size_of::<T::Rebound>(),
+        "type `{}` implements rebind but its `Reboud` ({}) is a different size",
         std::any::type_name::<T>(),
-        std::any::type_name::<T::Output>(),
+        std::any::type_name::<T::Rebound>(),
     );
 
     ManuallyDrop::into_inner(
