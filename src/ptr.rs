@@ -73,6 +73,10 @@ where
         unsafe { &mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value }
     }
 
+    pub unsafe fn unsafe_borrow_mut(self, _owner: &'r mut Owner<'own>) -> &'r mut T {
+        &mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value 
+    }
+
     pub fn as_raw(this: Gc<'gc, 'own, T>) -> *const T {
         let ptr: *mut GcBox<T> = this.ptr.as_ptr().cast();
 
