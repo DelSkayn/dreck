@@ -12,9 +12,4 @@ keywords = ["garbage", "memory"]
 [dependencies]
 
 [dev-dependencies]
-criterion = "0.3.6"
 trybuild = "1.0.63"
-
-[[bench]]
-name = "random_graph"
-harness = false
