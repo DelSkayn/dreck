@@ -223,8 +223,8 @@ impl<'own> Root<'own> {
     /// with which pointers it allows rebinding.
     pub fn rebind_to<'r, T: Trace<'own> + Bound<'r> + 'r>(
         &'r self,
-        t: Gc<'_, 'own, T>,
-    ) -> Gc<'r, 'own, T::Rebound>
+        t: T,
+    ) -> T::Rebound
     where
         T::Rebound: Trace<'own>,
     {
