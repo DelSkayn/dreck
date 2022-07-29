@@ -1,3 +1,4 @@
+
 # Dreck
-A safe garbage collection library for rust build around zero cost abstractions.
+A experimental, mostly-safe, garbage collection library for rust build around zero cost abstractions.
 
