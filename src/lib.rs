@@ -8,14 +8,13 @@ pub use root::{Root, RootGuard, Tracer};
 mod ptr;
 pub use ptr::Gc;
 
-
 /// Rebind a [`Gc`] object to a [`Root`].
 ///
 /// Gc pointers lifetime can be freely rebound to the lifetime of the arena at any time.
 /// This macro has two primary uses:
 ///
 ///
-/// The first is to rebind a `Gc` pointer returned a function which takes a mutable reference 
+/// The first is to rebind a `Gc` pointer returned a function which takes a mutable reference
 /// to the arena. A pointer returned by such a function is bound to a mutable arena which prevents
 /// one from allocating new bc pointer for as long as the returned value lives. By rebinding
 /// the returned `Gc` pointer the pointer will be bound to a immutable borrow which does allow
@@ -57,6 +56,19 @@ macro_rules! rebind {
             // Ensure that the $arena is an arena.
             // Bind to the lifetime of the arena.
             $crate::Root::rebind_to($root, v)
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! rebind_try {
+    ($root:expr, $value:expr) => {{
+        let v: Result<_, _> = $value;
+        match v {
+            Ok(r) => $crate::rebind!($root, r),
+            Err(e) => {
+                return Err($crate::rebind!($root, e).into());
+            }
         }
     }};
 }
