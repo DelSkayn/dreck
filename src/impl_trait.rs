@@ -111,6 +111,26 @@ unsafe impl<'to, T: Bound<'to>> Bound<'to> for Option<T> {
     type Rebound = Option<T::Rebound>;
 }
 
+unsafe impl<'own, R: Trace<'own>, E: Trace<'own>> Trace<'own> for Result<R, E> {
+    fn needs_trace() -> bool
+    where
+        Self: Sized,
+    {
+        R::needs_trace() || E::needs_trace()
+    }
+
+    fn trace(&self, t: Tracer<'_, 'own>) {
+        match *self {
+            Ok(ref r) => r.trace(t),
+            Err(ref e) => e.trace(t),
+        }
+    }
+}
+
+unsafe impl<'to, R: Bound<'to>, E: Bound<'to>> Bound<'to> for Result<R, E> {
+    type Rebound = Result<R::Rebound, E::Rebound>;
+}
+
 unsafe impl<'a, 'to, T, R> Bound<'to> for &'a mut T
 where
     T: Bound<'to, Rebound = R>,
