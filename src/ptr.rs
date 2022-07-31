@@ -4,7 +4,7 @@ use std::{
     ptr::{addr_of, NonNull},
 };
 
-use crate::{Bound, Owner, Root, Trace, marker::Invariant};
+use crate::{marker::Invariant, Bound, Owner, Root, Trace};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Color {
@@ -17,8 +17,7 @@ pub enum Color {
 pub(crate) type DynGcBoxPtr<'own, 'v> = NonNull<GcBox<'own, dyn Trace<'own> + 'v>>;
 
 /// The pointer type contained within a [`Gc`] pointer.
-pub type GcBoxPtr<'own,T> = NonNull<GcBox<'own, T>>;
-
+pub type GcBoxPtr<'own, T> = NonNull<GcBox<'own, T>>;
 
 pub(crate) struct GcBoxHead<'own> {
     pub next: Cell<Option<DynGcBoxPtr<'own, 'static>>>,
@@ -48,16 +47,21 @@ impl<'gc, 'own, T: Trace<'own> + ?Sized> Clone for Gc<'gc, 'own, T> {
     }
 }
 
-impl<'r,'gc: 'r, 'own, T: Trace<'own> + Sized> Gc<'gc, 'own, T> {
+impl<'r, 'gc: 'r, 'own, T: Trace<'own> + Sized> Gc<'gc, 'own, T> {
     pub fn borrow(self, _owner: &'r Owner<'own>) -> &'r T {
         unsafe { &(*self.ptr.as_ptr().cast::<GcBox<T>>()).value }
     }
 }
 
+impl<'gc, 'own, T: Trace<'own>> Gc<'gc, 'own, T> {
+    pub fn ptr_eq(first: Self, second: Gc<'_, 'own, T>) -> bool {
+        std::ptr::eq(first.ptr.as_ptr(), second.ptr.as_ptr())
+    }
+}
 
-impl<'r,'gc: 'r, 'own, T> Gc<'gc, 'own, T> 
+impl<'r, 'gc: 'r, 'own, T> Gc<'gc, 'own, T>
 where
-    T : Trace<'own> + Bound<'r> + Sized + 'r
+    T: Trace<'own> + Bound<'r> + Sized + 'r,
 {
     pub fn borrow_mut(self, _owner: &'r mut Owner<'own>, root: &Root<'own>) -> &'r mut T::Rebound {
         root.write_barrier(self);
@@ -74,7 +78,7 @@ where
     }
 
     pub unsafe fn unsafe_borrow_mut(self, _owner: &'r mut Owner<'own>) -> &'r mut T {
-        &mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value 
+        &mut (*self.ptr.as_ptr().cast::<GcBox<T>>()).value
     }
 
     pub fn as_raw(this: Gc<'gc, 'own, T>) -> *const T {
@@ -95,11 +99,11 @@ where
         }
     }
 
-    pub unsafe fn into_ptr(this: Self) -> GcBoxPtr<'own,T> {
+    pub unsafe fn into_ptr(this: Self) -> GcBoxPtr<'own, T> {
         this.ptr
     }
 
-    pub unsafe fn from_ptr(ptr: GcBoxPtr<'own,T>) -> Gc<'gc, 'own, T> {
+    pub unsafe fn from_ptr(ptr: GcBoxPtr<'own, T>) -> Gc<'gc, 'own, T> {
         Gc {
             ptr,
             _gc: PhantomData,
