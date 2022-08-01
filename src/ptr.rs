@@ -139,6 +139,10 @@ impl<'gc,'own,T: Trace<'own>> Clone for WeakGc<'gc,'own,T>{
 }
 
 impl<'r, 'gc: 'r, 'own, T: Trace<'own> + Sized> WeakGc<'gc, 'own, T> {
+    pub fn new(gc: Gc<'gc,'own,T>) -> Self{
+        WeakGc(gc)
+    }
+
     pub fn is_removed(self) -> bool{
         self.0.is_removed()
     }
@@ -158,6 +162,7 @@ impl<'r, 'gc: 'r, 'own, T: Trace<'own> + Sized> WeakGc<'gc, 'own, T> {
             Ok(ptr.0)
         }
     }
+
 }
 
 impl<'r, 'gc: 'r, 'own, T> WeakGc<'gc, 'own, T>
