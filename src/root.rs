@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     marker::Invariant,
-    ptr::{Color, GcBox, GcBoxHead, DynGcBoxPtr},
+    ptr::{Status, GcBox, GcBoxHead, DynGcBoxPtr},
     Bound, Gc, Owner, Trace,
 };
 
@@ -20,16 +20,30 @@ impl<'gc, 'own> Tracer<'gc, 'own> {
     /// Mark a pointer as alive.
     pub fn mark<T: Trace<'own>>(self, ptr: Gc<'_, 'own, T>) {
         unsafe {
-            if ptr.ptr.as_ref().head.color.get() != Color::White {
+            let color = ptr.ptr.as_ref().head.color.get();
+            if color == Status::Marked || color == Status::Traced {
                 return;
             }
-            ptr.ptr.as_ref().head.color.set(Color::Gray);
+            ptr.ptr.as_ref().head.color.set(Status::Marked);
 
             if T::needs_trace() {
                 let ptr: DynGcBoxPtr<'own, '_> = ptr.ptr.cast::<GcBox<'own, T>>();
                 let ptr: DynGcBoxPtr<'own, 'static> = mem::transmute(ptr);
                 self.0.grays.borrow_mut().push(ptr);
             }
+        }
+    }
+
+    /// Mark a pointer as weakly alive.
+    ///
+    /// # Safety
+    ///
+    /// If a object only marks a value weakly it must always check whether the object was removed
+    /// before granting access
+    pub unsafe fn mark_weak<T: Trace<'own>>(self, ptr: Gc<'_, 'own, T>) {
+        let color = ptr.ptr.as_ref().head.color.get();
+        if color == Status::Untraced{
+            ptr.ptr.as_ref().head.color.set(Status::MarkedWeak);
         }
     }
 }
@@ -127,7 +141,7 @@ impl<'own> Root<'own> {
 
         ptr.as_ptr().write(GcBox {
             head: GcBoxHead {
-                color: Cell::new(Color::White),
+                color: Cell::new(Status::Untraced),
                 next: Cell::new(self.all.get()),
             },
             value: v,
@@ -208,8 +222,8 @@ impl<'own> Root<'own> {
             return;
         }
         unsafe {
-            if self.phase.get() == Phase::Mark && gc.ptr.as_ref().head.color.get() == Color::Black {
-                gc.ptr.as_ref().head.color.set(Color::Gray);
+            if self.phase.get() == Phase::Mark && gc.ptr.as_ref().head.color.get() == Status::Traced {
+                gc.ptr.as_ref().head.color.set(Status::Marked);
                 let ptr: DynGcBoxPtr<'own, '_> = gc.ptr.cast::<GcBox<T>>();
                 let ptr: DynGcBoxPtr<'own, 'static> = mem::transmute(ptr);
                 self.grays_again.borrow_mut().push(ptr);
@@ -258,7 +272,7 @@ impl<'own> Root<'own> {
                     self.sweep_prev.set(None);
 
                     for root in self.roots.borrow().iter() {
-                        root.as_ref().head.color.set(Color::Black);
+                        root.as_ref().head.color.set(Status::Traced);
                     }
 
                     for root in self.roots.borrow().iter() {
@@ -273,10 +287,10 @@ impl<'own> Root<'own> {
                     if let Some(ptr) = ptr {
                         work_done += mem::size_of_val(ptr.as_ref());
                         ptr.as_ref().value.trace(Tracer(self));
-                        ptr.as_ref().head.color.set(Color::Black);
+                        ptr.as_ref().head.color.set(Status::Traced);
                     } else if let Some(ptr) = self.grays_again.borrow_mut().pop() {
                         ptr.as_ref().value.trace(Tracer(self));
-                        ptr.as_ref().head.color.set(Color::Black);
+                        ptr.as_ref().head.color.set(Status::Traced);
                     } else {
                         self.phase.set(Phase::Sweep);
                         self.sweep = self.all.get();
@@ -288,7 +302,7 @@ impl<'own> Root<'own> {
                         self.sweep = ptr.as_ref().head.next.get();
                         let layout = alloc::Layout::for_value(ptr.as_ref());
 
-                        if ptr.as_ref().head.color.get() == Color::White {
+                        if ptr.as_ref().head.color.get() == Status::Untraced {
                             if let Some(prev) = self.sweep_prev.get() {
                                 prev.as_ref().head.next.set(ptr.as_ref().head.next.get());
                             } else {
@@ -297,9 +311,11 @@ impl<'own> Root<'own> {
 
                             self.total_allocated
                                 .set(self.total_allocated.get() - layout.size());
-                        } else {
+                        } else if ptr.as_ref().head.color.get() == Status::MarkedWeak{
+                            ptr.as_ref().head.color.set(Status::Removed);
+                        }else{
                             self.remembered_size += layout.size();
-                            ptr.as_ref().head.color.set(Color::White);
+                            ptr.as_ref().head.color.set(Status::Untraced);
                             self.sweep_prev.set(Some(ptr));
                         }
                     } else {

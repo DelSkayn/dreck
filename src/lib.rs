@@ -3,10 +3,11 @@ pub mod marker;
 
 mod root;
 use marker::Invariant;
+use ptr::RootPtr;
 pub use root::{Root, RootGuard, Tracer};
 
 mod ptr;
-pub use ptr::Gc;
+pub use ptr::{Gc,WeakGc};
 
 /// Rebind a [`Gc`] object to a [`Root`].
 ///
@@ -207,6 +208,10 @@ impl<'own> Owner<'own> {
 /// ```
 pub unsafe trait Bound<'gc> {
     type Rebound;
+}
+
+pub trait Rootable<'gc>{
+    fn into_root(&self) -> RootPtr<'gc>;
 }
 
 /// Rebind a value to the lifetime of a given borrow.
