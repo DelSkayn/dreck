@@ -1,8 +1,11 @@
 use dreck::*;
+use std::pin::pin;
 
 pub struct Container<'gc, 'own>(Option<Gc<'gc, 'own, Container<'gc, 'own>>>);
 
 unsafe impl<'gc, 'own> Trace<'own> for Container<'gc, 'own> {
+    type Gc<'to> = Container<'to, 'own>;
+
     fn needs_trace() -> bool
     where
         Self: Sized,
@@ -10,29 +13,30 @@ unsafe impl<'gc, 'own> Trace<'own> for Container<'gc, 'own> {
         true
     }
 
-    fn trace<'t>(&self, trace: Tracer<'t,'own>) {
-        self.0.trace(trace)
+    fn trace(&self, marker: Marker<'own, '_>) {
+        self.0.trace(marker)
     }
 }
 
-unsafe impl<'from,'to,'own> Bound<'to> for Container<'from, 'own> {
-    type Rebound = Container<'to,'own>;
-}
-
 fn main() {
-    new_root!(owner, root);
+    dreck!(owner, arena);
 
     let mut container = Container(None);
-    let ptr = root.add(container);
+    let ptr = arena.add(container);
     container = Container(Some(ptr));
-    let ptr = root.add(container);
+    let ptr = arena.add(container);
 
-    root!(&root, ptr);
+    let guard = pin!(RootGuard::new());
+    let ptr = root!(&arena, guard, ptr);
 
-    root.collect(owner);
+    arena.collect(&owner);
 
-    let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
-    root.collect_full(owner);
+    // Container is moved out of the pointer.
+    // Its lifetime should still be tied to `ptr` lifetime.
+    let v = ptr.borrow_mut(&mut owner, &arena).0.take().unwrap();
+    // `ptr` and the container could be collected here.
+    arena.collect(&owner);
 
-    assert!(v.borrow(owner).0.is_none());
+    // Container is then used.
+    assert!(v.borrow(&owner).0.is_none());
 }

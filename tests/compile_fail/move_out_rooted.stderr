@@ -1,21 +1,22 @@
-error[E0502]: cannot borrow `*owner` as immutable because it is also borrowed as mutable
-  --> tests/compile_fail/move_out_rooted.rs:35:23
+error[E0502]: cannot borrow `owner` as immutable because it is also borrowed as mutable
+  --> tests/compile_fail/move_out_rooted.rs:38:19
    |
-34 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
-   |                            ----- mutable borrow occurs here
-35 |     root.collect_full(owner);
-   |                       ^^^^^ immutable borrow occurs here
-36 |
-37 |     assert!(v.borrow(owner).0.is_none());
+36 |     let v = ptr.borrow_mut(&mut owner, &arena).0.take().unwrap();
+   |                            ---------- mutable borrow occurs here
+37 |     // `ptr` and the container could be collected here.
+38 |     arena.collect(&owner);
+   |                   ^^^^^^ immutable borrow occurs here
+...
+41 |     assert!(v.borrow(&owner).0.is_none());
    |             - mutable borrow later used here
 
-error[E0502]: cannot borrow `*owner` as immutable because it is also borrowed as mutable
-  --> tests/compile_fail/move_out_rooted.rs:37:22
+error[E0502]: cannot borrow `owner` as immutable because it is also borrowed as mutable
+  --> tests/compile_fail/move_out_rooted.rs:41:22
    |
-34 |     let v = ptr.borrow_mut(owner, &root).0.take().unwrap();
-   |                            ----- mutable borrow occurs here
+36 |     let v = ptr.borrow_mut(&mut owner, &arena).0.take().unwrap();
+   |                            ---------- mutable borrow occurs here
 ...
-37 |     assert!(v.borrow(owner).0.is_none());
-   |               ------ ^^^^^ immutable borrow occurs here
+41 |     assert!(v.borrow(&owner).0.is_none());
+   |               ------ ^^^^^^ immutable borrow occurs here
    |               |
    |               mutable borrow later used by call

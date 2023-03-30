@@ -1,0 +1,25 @@
+warning: unused import: `std::pin::pin`
+ --> tests/compile_fail/wrong_realm_rebind.rs:2:5
+  |
+2 | use std::pin::pin;
+  |     ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+error[E0597]: `_pin` does not live long enough
+  --> tests/compile_fail/wrong_realm_rebind.rs:23:5
+   |
+23 |     dreck!(_owner2, arena2);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     borrowed value does not live long enough
+   |     binding `_pin` declared here
+...
+31 | }
+   | -
+   | |
+   | `_pin` dropped here while still borrowed
+   | borrow might be used here, when `_lifetime_constrainer` is dropped and runs the `Drop` code for type `main::KeepTillScopeDrop`
+   |
+   = note: values in a scope are dropped in the opposite order they are defined
+   = note: this error originates in the macro `dreck` (in Nightly builds, run with -Z macro-backtrace for more info)

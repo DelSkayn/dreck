@@ -1,5 +1,0 @@
-error[E0507]: cannot move out of `*owner` which is behind a mutable reference
-  --> tests/compile_fail/moving_cell_owner.rs:35:37
-   |
-35 |     let v = DerefDrop { ptr, owner: *owner };
-   |                                     ^^^^^^ move occurs because `*owner` has type `dreck::Owner<'_>`, which does not implement the `Copy` trait

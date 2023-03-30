@@ -1,0 +1,28 @@
+error[E0597]: `arena` does not live long enough
+ --> tests/compile_fail/outside_lifetime.rs:5:9
+  |
+2 |     let ptr = {
+  |         --- borrow later stored here
+3 |         dreck::dreck!(_owner, arena);
+  |         ---------------------------- binding `arena` declared here
+4 |
+5 |         arena.add(3)
+  |         ^^^^^^^^^^^^ borrowed value does not live long enough
+6 |     };
+  |     - `arena` dropped here while still borrowed
+
+error[E0597]: `_pin` does not live long enough
+ --> tests/compile_fail/outside_lifetime.rs:3:9
+  |
+2 |     let ptr = {
+  |         --- borrow later stored here
+3 |         dreck::dreck!(_owner, arena);
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         |
+  |         borrowed value does not live long enough
+  |         binding `_pin` declared here
+...
+6 |     };
+  |     - `_pin` dropped here while still borrowed
+  |
+  = note: this error originates in the macro `dreck::dreck` (in Nightly builds, run with -Z macro-backtrace for more info)

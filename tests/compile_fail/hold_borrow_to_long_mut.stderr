@@ -1,9 +1,0 @@
-error[E0597]: `root` does not live long enough
- --> tests/compile_fail/hold_borrow_to_long_mut.rs:7:17
-  |
-7 |         let a = root.add(0);
-  |                 ^^^^^^^^^^^ borrowed value does not live long enough
-8 |         a.borrow_mut_untraced(&mut owner)
-  |         --------------------------------- borrow later used here
-9 |     };
-  |     - `root` dropped here while still borrowed
